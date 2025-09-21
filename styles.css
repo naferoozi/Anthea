@@ -1,0 +1,326 @@
+body, h1, h2, h3, h4 {
+    font-family: "Open Sans", Sans-Serif;
+}
+body {
+    color: #031c2d;
+    background-color: #2f2f2f;
+    padding-left: 0px;
+    padding-top: 52px;
+}
+h1 {
+    font-size: 30px;
+    color: #2f2f2f;
+}
+h2 {
+    font-size: 14px;
+    color: #2f2f2f;
+}
+h3 {
+    font-size: 14px;
+    color: #2f2f2f;
+}
+h4 {
+    font-size: 12px;
+    color: #2f2f2f;
+}
+a, a:hover {
+    color: #0074AC;
+}
+pre {
+    font-size: 10px;
+}
+a {
+  color: #2f2f2f;
+  font-family: "Open Sans", Sans-Serif;
+}
+/* width */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #e4e4e4;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: #d1d1d1;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #5f5f5f;
+}
+
+/*Homepage that also prevents scroll*/
+.homepage {
+  background-repeat: no-repeat;
+  background-size: 100%;
+  padding: 0;
+  position: fixed; 
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  margin-left: 16px;
+}
+.bgblack {
+  background: #2f2f2f;
+  border-color: #ECDFBB;
+  color: #FFFFFF;
+  font-size: 10px;
+  margin-top: 0px; /*12px */
+}
+.bglight{
+  background: #F1F1F1;
+  border-color: #2f2f2f;
+  color: #ECDFBB;
+  font-size: 10px;
+  margin-top: 12px;
+}
+.bgfaded {
+  background: #923750;
+  color: #FFFFFF;
+  font-size: 10px;
+  opacity: 0.8;
+}
+.bgtitle {
+  background: rgba(0, 0, 0, 0);
+  color: #FFFFFF;
+  font-size: 10px;
+  letter-spacing: 4px;
+}
+.bgtransparent {
+  background: #FFFFFF;
+  color: #FFFFFF;
+  font-size: 10px;
+  opacity: 0;
+  border: 0px;
+}
+.bgbox {
+  background: rgba(0, 0, 0, 0);
+  color: #FFFFFF;
+  font-size: 10px;
+  letter-spacing: 4px;
+  font-weight: 400;
+}
+
+/* WFP header navigation bar */
+.navbar {
+  background-color: #2F2F2F;
+  max-height: 50px;
+}
+.navbar-nav {
+  font-size: 12px;
+  padding-left: 5px;
+  letter-spacing: 4px;
+}
+.navbar-logo img {
+  max-width: 30px; /* Adjust as needed */
+  margin-left: 16px;
+}
+.navbar-brand {
+  display: none;
+}
+
+/* Styles for .tabset */
+.nav-tabs-custom > .nav-tabs /*Tabset heading background*/{
+    margin: 0;
+    border-bottom: 1px solid #7f7f7f;
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 4px;
+    border-top-right-radius: 3px;
+    border-top-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    background: #F1F1F1;
+    white-space: nowrap;
+    overflow: hidden;
+    width: 100%;
+}
+
+
+/* Styles for value boxes */
+
+.value-box {
+  border-radius: 2px;
+  position: relative;
+  display: flex;
+  /*margin-left: 8px; /* Additional 8px to offset the scrollbar */
+  margin-bottom: 8px;
+}
+
+.value-box > .inner {
+  padding: 2px;
+  /*padding-left: 20px;*/
+  /*padding-right: 20px;*/
+}
+
+.value-box .value {
+  font-size: 10px;
+  font-weight: bold;
+  margin: 0;
+  white-space: nowrap;
+  padding: 10;
+}
+
+.value-box .caption {
+  font-size: 6px;
+}
+.value-box .caption > small {
+  display: block;
+  font-size: 8px;
+  margin-top: 1px;
+}
+
+
+.dashboard-row-orientation {
+  margin-right: 10px;
+  margin-left: 16px;
+  margin-top: 0px;
+  height: 100%;
+}
+
+.value-box .icon i {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  font-size: 10px;
+  max-height: 30px;
+  color: rgba(95, 95, 95, 0.15);
+}
+
+/* old */
+/*
+.value-box {
+  margin-top: 3px;
+  margin-right: 3px;
+  margin-left: 3px;
+  margin-bottom: 9px;
+  background: #F1F1F1;
+}
+.value-box .icon i{
+  color: #FFFFFF; 
+  font-size: 20px;
+  max-height: 40px;
+}
+.value-box .value {
+  font-size: 20px;
+  font-weight: normal;
+  color: #FFFFFF;
+}
+.value-box .caption {
+  font-size: 10px;
+  font-weight: normal;
+  color: #FFFFFF;
+}
+*/
+
+.chart-title {
+  color: #fff;
+  font-size: 14px;
+  letter-spacing: 4px;  
+  padding: 6px 0px 6px;
+}
+
+.info /*legends*/{
+  padding: 6px 8px;
+  color: #FFFFFF;
+  font-size: 8px;
+  color: white;
+  background: rgba(95, 95, 95, 0.6);
+  border-radius: 5px;
+}
+.leaflet-control-layers-expanded /*layer_control*/{
+  padding: 6px 10px 6px 6px;
+  color: #fff;
+  background: rgba(95, 95, 95, 0.6);
+  font-size: 12px;
+}
+.bootstrap-table table > thead /*DT header*/{
+  background-color: #F1F1F1;
+  color: #FFFFFF;
+}
+.bootstrap-table table /*DT*/{
+  background-color: #F1F1F1;
+  color: #FFFFFF;
+  font-size: 14px;
+}
+div.dataTables_wrapper div.dataTables_filter label /*DT searchbar*/{
+  color: #2F2F2F;
+  font-size: 10px;
+}
+.dataTables_filter { /*Putting search bar to the left maybe*/
+    text-align: left !important;
+}
+
+/* Text colums at bottom */
+.columntext {    
+  margin-right: 16px;
+  padding-right: 16px;
+  padding-bottom: 16px;
+  /*background: #2f2f2f;*/
+  border-color: #595959;
+  color: #2f2f2f;
+  font-size: 11px;
+  margin-top: 12px;
+  font-family: "Open Sans", Sans-Serif;
+  height: auto !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+}
+
+.center {
+  text-align: center;
+}
+:where(.section.level2, section.level2) {
+    margin-top: 1rem;
+}
+
+.flexfill-container, .flexfill-container-column {
+  height: 745px !important;
+}
+
+/*
+.nav-tabs .nav-item.show .nav-link, .nav-tabs > li.show .nav-link {
+  border: none;
+}
+
+.nav-tabs .nav-item.show .nav-link, .nav-tabs > li.show:first {
+  border-right: 1px solid #7f7f7f;
+}
+*/
+
+/* Custom CSS to arrange value and caption horizontally */
+.value-box .value-box-content {
+  display: flex;
+  flex-direction: row; /* Arrange children (value and caption) horizontally */
+  align-items: center; /* Vertically align items in the center */
+}
+
+/* Style the caption to appear after the value */
+.value-box .value-box-content .caption {
+  font-size: 1.1em; /* Adjust font size as needed */
+  padding-left: 0.5em; /* Add some space between the value and caption */
+}
+
+/* Ensure value and caption are displayed correctly */
+.value-box .value-box-content .value,
+.value-box .value-box-content .caption {
+  display: inline-block;
+}
+/* Hide the hamburger menu toggle button */
+.navbar-toggler, .navbar-toggle {
+  display: none !important;
+}
+@media (max-width: 768px) {
+  .flex-row {
+    flex-direction: column !important;
+  }
+  .flex-row > .html-fill-container {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+  }
+}

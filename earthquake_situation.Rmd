@@ -1,0 +1,718 @@
+---
+title: "&nbsp;"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: row
+    vertical_layout: scroll
+    theme:
+      bg: "#F1F1F1"
+      fg: "#2f2f2f"
+      primary: "#982b56"
+      secondary: "#0074AC"
+    logo: WFP_Minimal_White.png
+    css: "styles.css"
+    # navbar:
+    #   - {icon: "icon_knowledgeportal_dark_fill.png", href: "https://wfp.sharepoint.com/sites/WFPAfghanistanKnowledgePortal", target="_blank", align: right}
+---
+
+```{r setup, include=FALSE}
+# setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+pacman::p_load(flexdashboard, bslib,
+               readxl, knitr, tidyverse, lubridate, httr, sf, # The usual suspects
+               sp, shiny, plotly, htmltools,
+               leaflet, leaflet.extras, # Leaflet for most of our mapping 
+               DT, # For nice tables
+               acled.api, # Conflict data API
+               stringdist, # For matching inconsistent administrative level names
+               scales, # For redistributing our numeric values into new ranges
+               geosphere, # To create curved lines for displacement mapping
+               zoo, # To ease with rolling averages
+               htmlwidgets,
+               fuzzyjoin, # For fuzzyjoin
+               here, # For working directory stuff
+               janitor
+               )
+
+# Remove scientific notation
+options(scipen=999)
+
+# Create a custom number format to present more legible figures
+custom_number_format <- function(x){ifelse(x > 999999, paste(format(round((x/1000000), 1), nsmall=1, big.mark=","),"M"), format(round(x), nsmall=0, big.mark=","))}
+
+custom_number_formatk <- function(x){ifelse(x > 999999, paste(format(round((x/1000000), 1), nsmall=1, big.mark=","),"M"), 
+                                            ifelse(x > 1000, paste(format(round((x/1000), 1), nsmall=1, big.mark=","),"k"), 
+                                                   format(round(x), nsmall=1, big.mark=",")))}
+
+# Prepare label fonts
+label_font <- list(
+  family = "Open Sans, sans-serif",
+  size = 11,
+  color = "black")
+
+label_format <- list(
+  bgcolor = "#F4F4F4",
+  bordercolor = "transparent",
+  font = label_font,
+  align = "right")
+
+```
+
+WFP AFGHANISTAN
+================================
+
+## Row Title {data-height="40"}
+
+[  EASTERN REGION EARTHQUAKE
+UPDATE]{style="color:#2F2F2F;font-size:25px;letter-spacing:4px"} &nbsp;&nbsp;  [(Updated `r format(Sys.Date(), "%d %b %Y")`)]{style="color:#2F2F2F;font-size:12px;letter-spacing:4px"}
+
+```{r tidy, include = FALSE}
+####################
+##   SHAPEFILES   ##
+####################
+
+# Load a corporate shapefile with set admin boundaries
+geography_adm1 <- read_sf("_geofiles/AFG_adm1.shp") %>% 
+  mutate(X = st_coordinates(st_centroid(geometry))[, "X"],
+         Y = st_coordinates(st_centroid(geometry))[, "Y"])
+
+geography_adm2 <- read_sf("_geofiles/AFG_adm2.shp") %>% 
+  mutate(X = st_coordinates(st_centroid(geometry))[, "X"],
+         Y = st_coordinates(st_centroid(geometry))[, "Y"]) %>% 
+  mutate(ADMIN2Name = NAME_2) %>% 
+  mutate_at(vars(ADMIN2Name), ~ case_when(. == "Dara-i-Pech" ~ "Dara-e-Pech",
+                                          . == "Dara-I-Nur" ~ "Dara-e-Nur",
+                                          . == "Narang Wa Badil" ~ "Narang",
+                                          . == "Sirkanay" ~ "Sarkani",
+                                          . == "Mihtarlam" ~ "Mehtarlam",
+                                          . == "Khas Kunar" ~ "Khaskunar",
+                                          . == "Jalal abad" ~ "Jalalabad",
+                                          . == "Alishing" ~ "Alishang",
+                                          . == "Asad abad" ~ "Asadabad",
+                                          TRUE ~ .))
+
+# list_geography_adm2 <- geography_adm2 %>% 
+#   select(NAME_1, NAME_2) %>% 
+#   st_drop_geometry() %>%  
+#   tibble()
+
+############################
+##   DATA - WFP Offices   ##
+############################
+# Manual load in of office locations (not exact to real office location)
+# HAO: 62.21554131980693, 34.34973058160671
+# KanAO: 65.71543909839431, 31.62074860688125
+# JAO: 70.45819577745027, 34.43041790735262
+# MAO: 67.1103742636731, 36.70917174914949
+# FAO: 70.57904628822394, 37.11699633938173
+# KAO: 69.1845024219991, 34.52267477585701
+df_offices <- data.frame(adm2_name = c("Hirat", "Kandahar", "Jalalabad", "Mazar-e-Sharif", "Fayz Abad", "Kabul"),
+                      office = c("Herat Sub Office", "Kandahar Area Office", "Jalalabad Sub Office", "Mazar Area Office", "Faizabad Sub Office", "Kabul CO and Area Office"),
+                      office_abv = c("HAO", "KanAO", "JAO", "MAO", "FAO", "KAO"),
+                      X = c(62.21554131980693, 65.71543909839431, 70.45819577745027, 67.1103742636731, 70.57904628822394, 69.1845024219991),
+                      Y = c(34.34973058160671, 31.62074860688125, 34.43041790735262, 36.70917174914949, 37.11699633938173, 34.52267477585701))
+
+
+##############################
+##   DATA - Village names   ##
+##############################
+
+df_village <- read_xlsx("List of Villages in MMI 7 and 82.xlsx") %>% 
+  mutate(label = paste0("<span style=\"color:#923750;font-weight:bold\">", Province, ", ", District, ", ", Settlement, "</span>",  
+                        "<br/>", "Population: ", custom_number_format(`Population 2025 (ACVA)`)) %>% lapply(htmltools::HTML))
+
+####################
+##   DATA - IPC   ##
+####################
+# Load integrated phase classification (IPC) data for latest estimates of food insecurity, disaggregated at provincial levels and publicly available. https://www.ipcinfo.org/ipc-country-analysis/details-map/en/c/1159622/?iso3=AFG
+# ipc_status manually edited in Excel as the original file uses cell colour only to specify status
+df_ipc <- read_excel("./AF-IPC-Analysis-Acute-Food-Insecurity-March-2025.xlsx", skip = 12) %>%
+  select(3, 24, 26) %>%
+  `colnames<-`(c("adm1_name", "population", "ipc_status")) %>% 
+  mutate(adm1_name = case_when(adm1_name == "Sari pul" ~ "Sari Pul",
+                               adm1_name == "Panjsher" ~ "Panjshir",
+                               TRUE ~ adm1_name)) %>% 
+  filter(!is.na(adm1_name))
+
+df_ipc_nonurban <- df_ipc %>% 
+  filter(grepl("Urban", adm1_name) == FALSE)
+
+map_ipc <- left_join(geography_adm1, df_ipc_nonurban, by = c("NAME_1" = "adm1_name"), keep = TRUE) %>%
+  filter(!is.na(adm1_name)) %>% 
+  # rename(adm1_name = NAME_1) %>% 
+  mutate(X = st_coordinates(st_centroid(geometry))[, "X"],
+         Y = st_coordinates(st_centroid(geometry))[, "Y"]) %>%
+  mutate(label = paste0("<b>", adm1_name, "</b>", "<br/>", "IPC level ", ipc_status, "<br/>", "Population: ", custom_number_format(population)) %>% lapply(htmltools::HTML))
+
+
+##################################
+##   DATA - WFP CONTINGENCIES   ##
+##################################
+
+# Relative path from personal laptop
+setwd("../../../../AFCO Programme - Documents/General/1. SO1 Emergencies/02 Operations/06 Operations Trackers/Contingencies")
+# path_conti <- "../../../../AFCO Programme - Documents/General/1. SO1 Emergencies/02 Operations/06 Operations Trackers/Contingencies/"
+
+df_conti <- bind_rows(
+  read_xlsx("New Contingency Response Tracker.xlsx", sheet = "FAO", cell_limits(c(4, 2), c(NA, 26)), guess_max = 10000) %>% mutate(AO = "FAO"),
+  read_xlsx("New Contingency Response Tracker.xlsx", sheet = "JAO", cell_limits(c(4, 2), c(NA, 27)), guess_max = 10000) %>% mutate(AO = "JAO"),
+  read_xlsx("New Contingency Response Tracker.xlsx", sheet = "HAO", cell_limits(c(4, 2), c(NA, 26)), guess_max = 10000) %>% mutate(AO = "HAO"),
+  read_xlsx("New Contingency Response Tracker.xlsx", sheet = "KAO", cell_limits(c(4, 2), c(NA, 26)), guess_max = 10000) %>% mutate(AO = "KAO"),
+  read_xlsx("New Contingency Response Tracker.xlsx", sheet = "KanAO", cell_limits(c(4, 2), c(NA, 26)), guess_max = 10000) %>% mutate(AO = "KanAO"),
+  read_xlsx("New Contingency Response Tracker.xlsx", sheet = "MAO", cell_limits(c(4, 2), c(NA, 26)), guess_max = 10000) %>% mutate(AO = "MAO")
+) %>% 
+  filter(!is.na(incident_date))
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+
+df_conti_eq <- df_conti %>% 
+  filter(conti_type == "Earthquake") %>% 
+  filter(incident_date >= "2025-08-15") %>% 
+  mutate_at(vars(ADMIN2Name), ~ case_when(. == "Watapur" ~ "Asad abad", # No shapefile for Watapur available
+                                          TRUE ~ .)) %>% 
+  group_by(ADMIN1Name, ADMIN2Name) %>% 
+  summarise(sum_jat_hhs = sum(jat_hhs, na.rm = T),
+            sum_jat_wfp_hhs = sum(jat_wfp_hhs, na.rm = T),
+            sum_wfp_total_hhs = sum(wfp_total_hhs, na.rm = T),
+            sum_wfp_total_mt = sum(wfp_total_mt, na.rm = T),
+            sum_wfp_total_usd = sum(wfp_total_usd, na.rm = T)) 
+  
+df_eq <- df_conti_eq %>% 
+  left_join(geography_adm2, ., by = c("NAME_1" = "ADMIN1Name", "ADMIN2Name" = "ADMIN2Name")) %>% 
+  filter(!is.na(sum_jat_wfp_hhs)) %>%
+  mutate(label = paste0("<span style=\"color:#0074AC;font-weight:bold\">", NAME_1, ", ", ADMIN2Name, ": </span>", "<br/>", 
+                        "WFP Target: ", custom_number_format(sum_jat_wfp_hhs), " HHs<br/>WFP Distributed: ", custom_number_format(sum_wfp_total_hhs), " HHs") %>% lapply(htmltools::HTML))
+
+df_eq_manual <- read_xlsx("df_eq_manual.xlsx") %>%
+  mutate(admin2group = case_when(admin2 == "Watapur" ~ "Asadabad + Watapur",
+                                 admin2 == "Asadabad" ~ "Asadabad + Watapur",
+                                 TRUE ~ admin2))
+
+df_eq_manual_grp <- df_eq_manual %>% 
+  group_by(admin1, admin2group) %>% 
+  select(-admin2) %>%
+  summarise_all(list(sum)) %>% 
+  mutate(pct = wfp_hhs/jat_wfp_hhs,
+         pct_label = paste0(round(pct * 100, 1), "%")) %>% 
+  mutate_at(vars(pct), ~ case_when(pct > 1 ~ 1,
+                                   TRUE ~ .)) %>% 
+  mutate(admin2 = ifelse(admin2group == "Asadabad + Watapur", "Asadabad", admin2group))
+
+
+df_eq_map <- df_eq_manual_grp %>% 
+  mutate(pct_op = case_when(pct < 0.2 ~ pct + 0.1,
+                            TRUE ~ pct - 0.3)) %>% 
+  mutate_at(vars(admin1), ~ str_to_title(.)) %>%
+  left_join(geography_adm2, ., by = c("NAME_1" = "admin1", "ADMIN2Name" = "admin2")) %>%
+  filter(!is.na(pct)) %>% 
+  mutate(label = paste0("<span style=\"color:#0074AC;font-weight:bold\">", NAME_1, ", ", admin2group, "</span>", "<br/>", 
+                        "<span style=\"color:#000;font-weight:bold\">Overall progress: ", pct_label, "</span> <br/>",
+                        "WFP Target: ", custom_number_format(jat_wfp_hhs), " HHs<br/>WFP Distributed: ", custom_number_format(wfp_hhs), " HHs<br/>",
+                        "Total MT: ", wfp_mt, " MT") %>% lapply(htmltools::HTML))
+
+wfp_totals <- df_eq_manual %>% 
+  summarise(sum_wfp = sum(wfp_bens),
+            sum_jat = sum(jat_wfp_bens),
+            pct = sum(sum_wfp)/sum(sum_jat))
+
+
+#########################
+##   DATA - CONFLICT   ##
+#########################
+# Add conflict data, tidy and ensure clean and matching adm2 level names using amatch.
+# api_conflict <- acled.api(email.address = "clinton.tedja@wfp.org",
+#                           access.key = "nrSMy2xwZwCbaaMfXW2W",
+#                           country = "Afghanistan", 
+#                           start.date = "2025-01-01", 
+#                           end.date = Sys.Date())
+# 
+# 
+# df_conflict <- api_conflict %>% 
+#   type_convert() %>% 
+#   filter(fatalities > 0) %>% 
+#   mutate(scaled_fatalities = scales::rescale(fatalities, c(5000,10000))[[1]]) %>% 
+#   mutate_at(vars(admin1), ~ case_when(. == "Helmand" ~ "Hilmand",
+#                                      . == "Herat" ~ "Hirat",
+#                                      . == "Jowzjan" ~ "Jawzjan",
+#                                      . == "Nimruz" ~ "Nimroz",
+#                                      . == "Paktia" ~ "Paktya",
+#                                      . == "Sar-e Pol" ~ "Sari Pul",
+#                                      TRUE ~ .)) %>% 
+#   mutate_at(vars(admin2), ~ case_when(admin1 == "Badakhshan" & . == "Khash" ~ "Ishkashim",
+#                                       admin1 == "Khost" & . == "Tirzayee" ~ "Tere Zayi",
+#                                       TRUE ~ .))
+#   
+# 
+# df_conflict_agg <- df_conflict %>%
+#   mutate(event_date = as.Date(event_date),
+#          event_month = month(event_date, label = TRUE)) %>% 
+#   group_by(event_month, admin1, admin2) %>%
+#   summarise(fatalities = sum(fatalities)) %>% 
+#   ungroup() %>% 
+#   mutate(scaled_fatalities = scales::rescale(fatalities, c(2000,5000))) %>% 
+#   as_tibble()
+# 
+# 
+# # Custom match function for fuzzy matching
+# max_distance_match_with_dist <- function(x, y, max_dist) {
+#   distances <- stringdist::stringdist(x, y)
+#   matches <- distances <= max_dist
+#   return(list(matches = matches, distances = distances))
+# }
+# 
+# 
+# map_conflict <- fuzzy_left_join(df_conflict_agg, geography_adm2,  by = c("admin1" = "NAME_1", "admin2" = "NAME_2"), 
+#                 match_fun = list(`==`, function(x, y) {
+#                   match_result <- max_distance_match_with_dist(x, y, 7)
+#                   match_result$matches
+#                   }
+#                   )
+#                 ) %>% 
+#   mutate(distance = stringdist::stringdist(NAME_2, admin2)) %>%
+#   select(-geometry) %>% 
+#   group_by(event_month, admin1, admin2) %>%
+#   slice_min(order_by = distance, n=1, with_ties = FALSE) %>% 
+#   filter(!is.na(NAME_2)) %>% 
+#   select(names(df_conflict_agg), X, Y) %>% 
+#   mutate(label = paste0(  "<span style=\"color:#923750;font-weight:bold\">", admin1, ", ", admin2, ": ", "</span>",  
+#   "<br/>", custom_number_format(fatalities), " conflict-related fatalities in ", event_month, " 2025") %>%
+#   lapply(htmltools::HTML))
+
+
+###########################
+##   DATA - EARTHQUAKE   ##
+###########################
+# Getting updated data by querying USGS
+api_eq_base_url <- "https://earthquake.usgs.gov/fdsnws/event/1/query"
+
+api_eq_params <- list(
+  format = "csv",           # csv, geojson, or xml available
+  starttime = "2025-08-30", # beginning of query window
+  endtime = "2025-09-30",   # end of query window
+  minmagnitude = 4.5,       # minimum magnitude filter
+  latitude = 34.5,          # center latitude (Afghanistan roughly)
+  longitude = 69.2,         # center longitude (near Kabul)
+  maxradius = 6             # radius in degrees (~660 km, covers Afghanistan + N. Pakistan)
+)
+
+# Make request and read as csv
+eq_data <- read_csv(content(GET(api_eq_base_url, query = api_eq_params), "raw")) %>% 
+  mutate(scaled_mag =  scales::rescale(mag, c(3000,4500)),
+         scaled_op =  scales::rescale(mag, c(0.2, 0.9)),
+         label = paste0("<span style=\"color:#ef404c;font-weight:bold\">", time, "</span>", "<br/>", 
+                        "Magnitude ", mag, " at depth of ", depth, " km") %>% lapply(htmltools::HTML))
+
+```
+
+
+```{r functions, include = FALSE}
+# Creating a function to take in a custom SVG icon for placement in the map
+# Can take in both hex colours and descriptive. For hex, use %23 to represent #
+make_colored_icon <- function(svg_file, color, width = 32, height = 32) {
+  svg_txt <- readLines(svg_file, warn = FALSE)
+  svg_colored <- gsub('fill="[^"]*"', paste0('fill="', color, '"'), svg_txt) %>% gsub("#", "%23", .)
+  svg_str <- paste(svg_colored, collapse = "")
+  
+  leaflet::makeIcon(
+    iconUrl = paste0("data:image/svg+xml;utf8,", svg_str),
+    iconWidth = width, iconHeight = height
+  )
+}
+
+# # Example use in Leaflet
+# leaflet() %>%
+#   addTiles() %>%
+#   addMarkers(lng = 69.2, lat = 34.5,
+#              icon = make_colored_icon("building.svg", "blue", width = 15, height = 15))
+
+```
+
+## Row Situation Boxes {data-height="120"}
+
+### WFP Target {.bgblack}
+
+```{r}
+# val_tar <- paste0(custom_number_formatk(wfp_totals$sum_jat/7), " HHs / ")
+
+valueBox(paste0("<span style=\"color:#ef404c;font-weight:light;font-size:8pt\">", custom_number_formatk(wfp_totals$sum_jat), " people</span>") %>% lapply(htmltools::HTML), color="#FFF")
+
+```
+
+### WFP People Reached {.bgblack}
+
+```{r}
+# 
+valueBox(paste0(custom_number_formatk(wfp_totals$sum_wfp), " people"), color="#FFF")
+```
+
+### WFP Distribution Overall Progress {.bgblack}
+
+```{r}
+valueBox(paste0(round(wfp_totals$pct*100, 1), "%"), color="#FFF")
+```
+
+## Row Situation {.tabset data-height="800"}
+
+### OPERATIONS
+
+```{r map}
+# Label styling
+eq_labels <- paste0("<span style=\"color:#ef404c;font-weight:bold\">", eq_data$time, "</span>", "<br/>", 
+                    "Magnitude ", eq_data$mag, " at depth of ", eq_data$depth, " km") %>% 
+  lapply(htmltools::HTML)
+
+map_colors <- colorFactor(palette = c("#923750", "#EE7449", "#FCC261"), 
+                   levels = c(4, 3, 2))
+
+settlement_colors <- colorFactor(palette = c("#ef404c", "#FF9933"), 
+                   levels = c(8, 7))
+
+path_lat <- c(34.7146396495843, 34.56513561228954)
+path_lng <- c(70.76307907924179, 69.21272918931922)
+## ----------------------
+## Build the map
+## ----------------------
+
+map_main <- leaflet(map_ipc) %>%
+  addTiles() %>%
+  addProviderTiles(providers$CartoDB.Positron, group = "Normal") %>%
+    addProviderTiles(providers$Esri.WorldImagery, group = "Satellite",
+                     options = providerTileOptions(opactiy = 0.6)) %>%
+  # addProviderTiles(providers$Stadia.AlidadeSatellite, group = "Satellite",
+                   # options = providerTileOptions(opactiy = 0.6)) %>% 
+  # addTiles("https://api.mapbox.com/styles/v1/ctedja/ckt4kzvju15yu17qo3ianralh/tiles/256/{z}/{x}/{y}@2x?access_token=TOKEN") %>%
+  # addTiles("https://api.mapbox.com/styles/v1/ctedja/ckt4licat16cu17p571olhq35/tiles/256/{z}/{x}/{y}@2x?access_token=TOKEN", group = "Main Roads") %>%
+  # addProviderTiles(providers$CartoDB.DarkMatter) %>%
+  # addTiles("https://api.mapbox.com/styles/v1/ctedja/ckt4kzvju15yu17qo3ianralh/tiles/256/{z}/{x}/{y}@2x?access_token=TOKEN", group = "Main Roads") %>%
+  addTiles("https://api.mapbox.com/styles/v1/antpiong/cmepdtdzt007901qt69bycqxe/tiles/256/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiYW50cGlvbmciLCJhIjoiY21lcGJoa29nMG14ajJrcXZ5aWhsNHU5OSJ9.nNiXXApjyME6yXX86wpIcw", group = "Main Roads") %>%
+  # setView(lat = 34.3, lng = 68, zoom = 5.5) %>%   # Whole of Afghanistan
+  setView(lat = 34.79564478155112, lng = 70.76942222306286, zoom = 9) %>%   # Earthquake area/Eastern Region
+  # IPC layer
+  addPolygons(fillColor = ~map_colors(ipc_status),
+              fillOpacity = 0.8,
+              color = "white",
+              stroke = TRUE,
+              weight = 1,
+              label = ~label,
+              group="IPC",
+              highlightOptions = highlightOptions(weight = 4, 
+                                                  color = "white")) %>% 
+  addLegend("bottomright", 
+            colors= c("#923750", "#EE7449", "#FCC261"), 
+            labels=c("IPC Level 4", "IPC Level 3", "IPC Level 2"), 
+            title="IPC",
+            group = "IPC") %>%
+  
+  # WFP distribution layer
+  addPolygons(data = df_eq_map,
+              # fillColor = ,
+              fillOpacity = ~ pct_op,
+              color = "#0074AC",
+              stroke = TRUE,
+              weight = 1,
+              label = ~ label,
+              group = "WFP Distributions",
+              highlightOptions = highlightOptions(weight = 4, 
+                                                  color = "white")) %>% 
+
+  # WFP Office layer
+  addMarkers(data = df_offices, lat = ~Y, lng = ~X,
+             icon = make_colored_icon("building.svg", "blue", width = 15, height = 15),
+             label = ~ office,
+             group = "WFP Area Offices") %>% 
+  
+  # UNHAS route
+  addPolylines(lng = path_lng,
+               lat = path_lat,
+               weight = 3,
+               color = "#C0DCDC",
+               opacity = 0.5,
+               label = "2-5 rotations per day",
+               highlightOptions = highlightOptions(color = "#C0DCDC",
+                                                   opacity = 1,
+                                                   weight = 6),
+               group = "UNHAS Heli Route"
+               ) %>% 
+  addCircleMarkers(lng = path_lng,
+             lat = path_lat,
+             # color = "#C0DCDC",
+             color = "#C0DCDC",
+             fillOpacity = 0.6,
+             stroke = FALSE,
+             radius = 8,
+             label = c("Wadir", "Kabul"),
+             group = "UNHAS Heli Route") %>% 
+
+  # Village layer
+  addCircles(data = df_village, lat = ~`latitude (Y)`, lng = ~`Longitude (X)`,
+             label = ~ label,
+             color = ~settlement_colors(`MMI_Intensity (USGS)`),
+             fillOpacity = 0.9,
+             radius = 20,
+             # labelOptions = labelOptions(noHide = FALSE, textsize = "10px"),
+             group = "Settlements") %>% 
+  
+  addLegend("bottomright", 
+            colors= c("#ef404c", "#FF9933"), 
+            labels=c("MMI Intensity (Severe)", "MMI Intensity (Very Strong)"), 
+            title="Modified Mercalli Intensity",
+            group = "Settlements") %>%
+
+  # Earthquake layer
+  addCircles(data = eq_data, lng = ~longitude, lat = ~latitude,
+             color = "#ef404c",
+             label = eq_labels,
+             # className = "pulse",
+             labelOptions = labelOptions(
+               noHide = FALSE, # Set to TRUE if you want labels always visible
+               direction = "auto",
+               textsize = "12px"),
+             weight = 0,
+             radius = ~scaled_mag,
+             fillOpacity = ~scaled_op,
+             group = "Earthquake Events") %>%
+  
+  # Conflict layer
+  # addCircles(data = map_conflict %>% filter(fatalities > 0), lng = ~X, lat = ~Y,
+  #            label = ~ label,
+  #            color = "#B7767E",
+  #            radius = ~ scaled_fatalities,
+  #            weight = 0,
+  #            fillOpacity = 0.6,
+  #            highlightOptions = highlightOptions(fillColor = "#FFFFFF"),
+  #            group="Conflict") %>%
+  
+  addLayersControl(baseGroups = c("Normal", "Satellite"),
+                   overlayGroups = c("WFP Distributions", "UNHAS Heli Route", "Earthquake Events", "Settlements", "WFP Area Offices", "IPC", "Main Roads"),
+                   options = layersControlOptions(collapsed = FALSE)) %>%
+  hideGroup(c("Earthquake Events", "IPC", "WFP Area Offices", "Settlements", "Satellite"))
+
+
+dist_table <- df_eq_manual_grp %>%
+  select(admin1, admin2, jat_wfp_hhs, wfp_hhs, pct_label, wfp_mt) %>% 
+  arrange(admin1, desc(wfp_hhs)) %>% 
+  # arrange(desc(wfp_hhs)) %>% 
+  mutate_at(vars(wfp_mt), ~ round(., 1)) %>% 
+  # mutate_at(vars(c("sum_jat_wfp_hhs", "sum_wfp_total_hhs")), ~ custom_number_format(.)) 
+  datatable(class = c("hover"),
+            filter = "none",
+            autoHideNavigation = TRUE,
+            rownames = FALSE,
+            options = list(dom = 't', pageLength = 20),
+            fillContainer = TRUE,
+            colnames = c("Province", "District", "WFP Target", "WFP Reached", "WFP Reached (%)", "MT")) %>%
+  formatStyle(
+    'wfp_hhs',
+    color = "#0074AC",
+    background = styleColorBar(df_eq_manual$wfp_hhs, '#cce5f2'),
+    backgroundSize = '100% 60%',
+    backgroundRepeat = 'no-repeat',
+    backgroundPosition = 'center'
+  ) %>%
+  formatStyle(
+    'pct_label',
+    color = "#0074AC",
+    # background = styleColorBar(df_eq_manual$wfp_mt, '#9ECBCC'),
+    # backgroundSize = '90% 60%',
+    # backgroundRepeat = 'no-repeat',
+    # backgroundPosition = 'center',
+    textAlign = 'right'
+  ) %>%
+  formatStyle(
+    'wfp_mt',
+    color = "#0074AC",
+    # background = styleColorBar(df_eq_manual$wfp_mt, '#9ECBCC'),
+    backgroundSize = '90% 60%',
+    backgroundRepeat = 'no-repeat',
+    backgroundPosition = 'center'
+  ) %>%
+  formatRound(c(3,4), digits = 0, interval = 3, mark = ",")
+
+# 
+# dist_table_tot <- df_conti_eq %>%
+#   select(ADMIN1Name, ADMIN2Name, sum_jat_wfp_hhs, sum_wfp_total_hhs, sum_wfp_total_mt) %>% 
+#   arrange(desc(sum_wfp_total_hhs)) %>% 
+#   mutate_at(vars(sum_wfp_total_mt), ~ round(., 1)) %>% 
+#   adorn_totals() %>% 
+#   filter(ADMIN1Name == "Total") %>%
+#   datatable(class = c("display"),
+#             filter = "none",
+#             autoHideNavigation = TRUE,
+#             rownames = FALSE,
+#             options = list(dom = 't', pageLength = 1),
+#             fillContainer = TRUE,
+#             colnames = "") %>% 
+#   formatRound(c(3:5), digits = 0, interval = 3, mark = ",")
+
+## ----------------------
+## Fitting all components
+## ----------------------
+
+# fillCol(flex = c(5, 94.5, 0.5),
+#         paste0("<span style=\"color:#2F2F2F;font-size:12px;letter-spacing:4px;font-weight:bold\">",
+#                                  " MAP OF EASTERN REGION", "</span>", "<br>") %>% lapply(htmltools::HTML),
+#         fillRow(flex = c(66, 3, 31), 
+#                 map_main,
+#                 "",
+#                 fillCol(flex = c(4, 96),
+#                         paste0("<span style=\"color:#0074AC;font-size:12px;letter-spacing:4px;font-weight:bold\">",
+#                                  " WFP DISTRIBUTIONS", "</span>", "<br>") %>% lapply(htmltools::HTML),
+#                         dist_table),
+#                 ),
+#         paste0("<span style=\"color:#000;font-size:9px;font-style:italic\">",
+#                "&ensp;Conflict data from ACLED. 14 days refers to ", format(as.Date(Sys.Date())-14, format = "%d %B %Y"), ". Food insecurity data from IPC.", "</span>") %>% lapply(htmltools::HTML)
+#         )
+
+fillCol(flex = c(0.5, 99, 0.5),
+        "",
+        fillRow(flex = c(66.5, 0.5, 33), 
+                fillCol(flex = c(4, 1, 95),
+                        paste0("<span style=\"color:#2F2F2F;font-size:15px;letter-spacing:4px;font-weight:bold\">",
+                               " MAP OF EASTERN REGION", "</span>", "<br>") %>% lapply(htmltools::HTML),
+                        "",
+                        map_main),
+                "",
+                fillCol(flex = c(4, 1, 95),
+                        paste0("<span style=\"color:#0074AC;font-size:15px;letter-spacing:4px;font-weight:bold\">",
+                                 " WFP R1 DISTRIBUTIONS (HOUSEHOLDS)", "</span>", "<br>") %>% lapply(htmltools::HTML),
+                        "",
+                        dist_table),
+                #  dist_table_tot
+                ),
+        paste0("<span style=\"color:#000;font-size:11px;font-style:italic\">",
+               "&ensp;Food insecurity data from IPC. Earthquake data from USGS. WFP distributions from AO data.", "</span>") %>% lapply(htmltools::HTML)
+        )
+
+
+```
+
+### REPORTS
+
+```{r evidence}
+
+# Get reports from Reliefweb
+# api_url_afg <- GET("https://api.reliefweb.int/v2/reports?appname=apidoc&profile=full&limit=500&filter[operator]=AND&filter[conditions][0][operator]=OR&filter[conditions][0][conditions][0][field]=primary_country&filter[conditions][0][conditions][0][value]=Afghanistan&filter[conditions][1][field]=date.created&filter[conditions][1][value][from]=2025-01-01T00:00:00%2B00:00&filter[conditions][2][field]=source.shortname")
+
+api_url_afg <- GET(
+  "https://api.reliefweb.int/v2/reports",
+  query = list(
+    appname = "apidoc",
+    profile = "full",
+    limit = 200,
+    `filter[operator]` = "AND",
+    `filter[conditions][0][operator]` = "OR",
+    `filter[conditions][0][conditions][0][field]` = "primary_country",
+    `filter[conditions][0][conditions][0][value]` = "Afghanistan",
+    `filter[conditions][1][field]` = "date.created",
+    `filter[conditions][1][value][from]` = "2025-09-01T00:00:00+00:00",
+    `filter[conditions][2][field]` = "source.shortname"
+    # If you want to filter by a specific source, add:
+    # `filter[conditions][2][value]` = "WFP"
+  )
+)
+
+# content(api_url_afg, as = "text")
+
+reliefweb_afg <- bind_rows(lapply(c(content(api_url_afg)$data),
+                                 as.data.frame)) %>%
+  select(c(fields.date.created,
+           fields.primary_country.name,
+           fields.format.name,
+           fields.source.shortname,
+           fields.title,
+           # fields.origin,
+           #fields.file.url,
+           #fields.body,
+           fields.url_alias#,
+           #fields.file.preview.url.thumb
+           )) %>%
+  mutate(fields.date.created = as.Date(fields.date.created,
+                                          format = "%Y-%m-%d",
+                                          tz = "UTC")) %>%
+  rename(Country = fields.primary_country.name,
+         Category = fields.format.name,
+         Title = fields.title,
+         Date = fields.date.created,
+         Link = fields.url_alias,
+         Source = fields.source.shortname,
+         #Alt_Link = fields.file.url,
+         #Author = fields.source.shortname,
+         #Summary = fields.body,
+         #Origin_Link = fields.origin,
+         #Image = fields.file.preview.url.thumb
+         ) %>%
+  mutate(Category = case_when(Category == "Map" ~ "Dashboards/Maps/Infographics",
+                              Category == "Infographic" ~ "Dashboards/Maps/Infographics",
+                              Category == "Evaluation and Lessons Learned" ~ "Evaluations",
+                              Category == "Assessment" ~ "Assessments (Food Security and Nutrition)",
+                              Category == "Analysis" ~ "Analysis/Research",
+                              Category == "News and Press Release" ~ "Stories/Articles",
+                              TRUE ~ Category)) %>%
+  mutate(Category = case_when(grepl("market", Title, ignore.case = TRUE) ~ "Market/Price Monitoring",
+                              grepl("price", Title, ignore.case = TRUE) ~ "Market/Price Monitoring",
+                              grepl("country brief", Title, ignore.case = TRUE) ~ "Country Brief",
+                              grepl("annual country report", Title, ignore.case = TRUE) ~ "Annual Country Report",
+                              TRUE ~ Category)) %>%
+  mutate(Title = paste0("<a href=\"", Link,"\" target=\"_blank\">", Title,"</a>"))
+
+  # filter(!grepl("country brief", Title, ignore.case = TRUE))
+# rm(api_url_iran)
+#
+# evidence <- read_excel('C:\\Users\\clinton.tedja\\OneDrive - World Food Programme\\Documents (OneDrive)\\Data\\Evidence_Backend\\Evidence_Mapping.xlsx') %>%
+#   select(c(Country, Date, Category, Title, Link))%>%
+#   bind_rows(reliefweb_iran) %>%
+#   filter(Country == "Afghanistan" |
+#            Country == "Pakistan" |
+#            Country == "Tajikistan" |
+#            Country == "Iran (Islamic Republic of)",
+#          !is.na(Link)) %>%
+#   mutate(Title = paste0("<a href=\"", Link,"\" target=\"_blank\">", Title,"</a>")) %>%
+#   select(-c(Link)) %>%
+#   distinct(Title, .keep_all = TRUE)
+#
+#
+# # A quick manual input to add additional files
+# evidence <- bind_rows(data_frame(Country = c("Iran (Islamic Republic of)"), Date = as.Date(c("2021-08-17", "2021-08-09")), Category = "Situation Report", Title = c("Flash Update 2", "Flash Update 1"), Link = c("https://wfp.sharepoint.com/:b:/s/RBB/ESx_RvioxudBg6lprEAglJYB5Rnypor8zQ55op776iFmGw?e=kZV5me", "https://wfp.sharepoint.com/:b:/s/RBB/EekFsQNibF1CpmMxI3jq_20BUHJb__eh2uBFW9NuZ2zYPQ?e=gvfwDO")) %>%
+#                         mutate(Title = paste0("<a href=\"", Link,"\" target=\"_blank\">", Title,"</a>")) %>%
+#                         select(-c(Link)),
+#                   evidence)
+
+# evidence <- reliefweb_afg
+
+
+afg_eqevidence_table <- reliefweb_afg %>% 
+  filter(grepl("earthquake|kunar|nangarhar|jalalabad", Title, ignore.case = T) == TRUE) %>%
+  select(-c(Link)) %>% 
+  select(Date, Source, Category, Title) %>% 
+  filter(Date >= "2025-08-30") %>% 
+  arrange(desc(Date)) %>% 
+  mutate_at(vars(Date), ~ format(., "%d %b '%y")) %>% 
+  datatable(class = c("hover"),
+            filter = "none",
+            autoHideNavigation = TRUE,
+            rownames = FALSE,
+            options = list(dom = 'ft', 
+                           # rowCallback = JS(
+                           #   "function(row, data) {",
+                           #   "var full_text = data[1] + ': ' + data[4]",
+                           #   "$('td', row).attr('title', full_text);",
+                           #   "}"),
+                           pageLength = length(unique(reliefweb_afg$Title)),
+                           autowidth = FALSE),
+            escape = FALSE,
+            fillContainer = TRUE)
+
+
+fillCol(#flex = c(5, 94.5, 0.5),
+        # paste0("<span style=\"color:#2F2F2F;font-size:12px;letter-spacing:4px;font-weight:bold\">",
+        #                          " REPORTS", "</span>", "<br>") %>% lapply(htmltools::HTML),
+        # fillRow(afg_eqevidence_table),
+        afg_eqevidence_table,
+        height = "700")
+
+```
+
+```{r}
+knitr::knit_exit()
+```
