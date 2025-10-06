@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ready‑Copy Admin Dashboard</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
+
+    <style>
+      body {
+        font-size: 0.95rem;
+      }
+      .sidebar {
+        min-height: 100vh;
+      }
+      .sidebar .nav-link {
+        color: #333;
+      }
+      .sidebar .nav-link.active {
+        background: #0d6efd;
+        color: #fff;
+      }
+      .dashboard-header {
+        border-bottom: 1px solid rgba(0,0,0,0.075);
+      }
+      .card-metric .display-6 {
+        font-weight: 600;
+      }
+      footer {
+        border-top: 1px solid rgba(0,0,0,0.075);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Top Navbar -->
+    <nav class="navbar navbar-dark bg-dark sticky-top">
+      <div class="container-fluid">
+        <button class="navbar-toggler d-md-none me-2" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <a class="navbar-brand" href="#">Ready‑Copy Admin</a>
+        <form class="d-none d-md-flex" role="search">
+          <input class="form-control form-control-dark" type="search" placeholder="Search" aria-label="Search">
+        </form>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <button class="btn btn-outline-light btn-sm">Settings</button>
+          <button class="btn btn-primary btn-sm">New</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container-fluid">
+      <div class="row">
+        <!-- Sidebar -->
+        <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+          <div class="position-sticky pt-3">
+            <ul class="nav flex-column">
+              <li class="nav-item">
+                <a class="nav-link active" aria-current="page" href="#">
+                  <span class="me-2" aria-hidden="true">📊</span>
+                  Dashboard
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">
+                  <span class="me-2" aria-hidden="true">🧾</span>
+                  Orders
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">
+                  <span class="me-2" aria-hidden="true">📦</span>
+                  Products
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">
+                  <span class="me-2" aria-hidden="true">👥</span>
+                  Customers
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">
+                  <span class="me-2" aria-hidden="true">📈</span>
+                  Reports
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">
+                  <span class="me-2" aria-hidden="true">⚙️</span>
+                  Integrations
+                </a>
+              </li>
+            </ul>
+
+            <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+              <span>Saved reports</span>
+              <a class="link-secondary" href="#" aria-label="Add a new report">＋</a>
+            </h6>
+            <ul class="nav flex-column mb-2">
+              <li class="nav-item">
+                <a class="nav-link" href="#">Current month</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">Last quarter</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">Year-end</a>
+              </li>
+            </ul>
+          </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 pb-5">
+          <!-- Header -->
+          <div class="d-flex flex-wrap align-items-center justify-content-between pt-3 pb-3 mb-4 dashboard-header">
+            <h1 class="h3 m-0">Dashboard</h1>
+            <div class="d-flex align-items-center gap-2">
+              <input type="date" class="form-control form-control-sm" aria-label="Start date">
+              <span class="text-muted">to</span>
+              <input type="date" class="form-control form-control-sm" aria-label="End date">
+              <button class="btn btn-sm btn-outline-secondary">Export</button>
+            </div>
+          </div>
+
+          <!-- KPI Cards -->
+          <div class="row g-3">
+            <div class="col-xl-3 col-md-6">
+              <div class="card card-metric border-0 shadow-sm h-100">
+                <div class="card-body">
+                  <div class="text-muted">New Orders</div>
+                  <div class="display-6">128</div>
+                  <div class="text-success small">▲ 12% vs last week</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+              <div class="card card-metric border-0 shadow-sm h-100">
+                <div class="card-body">
+                  <div class="text-muted">Revenue</div>
+                  <div class="display-6">$14,230</div>
+                  <div class="text-success small">▲ 5% vs last week</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+              <div class="card card-metric border-0 shadow-sm h-100">
+                <div class="card-body">
+                  <div class="text-muted">Active Users</div>
+                  <div class="display-6">2,431</div>
+                  <div class="text-danger small">▼ 2% vs last week</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-xl-3 col-md-6">
+              <div class="card card-metric border-0 shadow-sm h-100">
+                <div class="card-body">
+                  <div class="text-muted">Bounce Rate</div>
+                  <div class="display-6">34%</div>
+                  <div class="text-success small">▲ 1.4% vs last week</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart + Table -->
+          <div class="row g-3 mt-1">
+            <div class="col-lg-8">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                  <strong>Performance</strong>
+                  <div class="btn-group btn-group-sm" role="group" aria-label="Time range">
+                    <button type="button" class="btn btn-outline-secondary active">7d</button>
+                    <button type="button" class="btn btn-outline-secondary">30d</button>
+                    <button type="button" class="btn btn-outline-secondary">90d</button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <!-- Placeholder for chart library (e.g., Chart.js) -->
+                  <div class="bg-light rounded-2 w-100" style="height: 300px; display: grid; place-items: center;">
+                    <span class="text-muted">Chart placeholder</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-4">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white"><strong>Tasks</strong></div>
+                <div class="card-body">
+                  <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex align-items-center">
+                      <input class="form-check-input me-2" type="checkbox" value="" id="task1">
+                      Review orders requiring approval
+                    </li>
+                    <li class="list-group-item d-flex align-items-center">
+                      <input class="form-check-input me-2" type="checkbox" value="" id="task2">
+                      Update product inventory
+                    </li>
+                    <li class="list-group-item d-flex align-items-center">
+                      <input class="form-check-input me-2" type="checkbox" value="" id="task3">
+                      Prepare weekly sales report
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity Table -->
+          <div class="card border-0 shadow-sm mt-3">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <strong>Recent Activity</strong>
+              <div class="input-group input-group-sm" style="max-width: 260px;">
+                <span class="input-group-text">Filter</span>
+                <input type="text" class="form-control" placeholder="Type to filter..." aria-label="Filter table">
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Details</th>
+                    <th scope="col">Owner</th>
+                    <th scope="col" class="text-end">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">1</th>
+                    <td><span class="badge text-bg-primary">Order</span></td>
+                    <td>Order <strong>#10234</strong> placed</td>
+                    <td>Alex Kim</td>
+                    <td class="text-end">2 min ago</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">2</th>
+                    <td><span class="badge text-bg-success">Product</span></td>
+                    <td>Updated stock for <strong>SKU‑RC‑204</strong></td>
+                    <td>Jamie Lee</td>
+                    <td class="text-end">12 min ago</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">3</th>
+                    <td><span class="badge text-bg-warning">Alert</span></td>
+                    <td>Low inventory threshold reached</td>
+                    <td>System</td>
+                    <td class="text-end">45 min ago</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer class="text-muted small mt-4 pt-3">
+            <div class="d-flex flex-wrap justify-content-between">
+              <span>© <span id="year"></span> Ready‑Copy</span>
+              <div class="d-flex gap-3">
+                <a class="link-secondary" href="#">Privacy</a>
+                <a class="link-secondary" href="#">Terms</a>
+                <a class="link-secondary" href="#">Support</a>
+              </div>
+            </div>
+          </footer>
+        </main>
+      </div>
+    </div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"
+    ></script>
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>
